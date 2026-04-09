@@ -1,0 +1,12 @@
+from django.contrib import admin
+from django.urls import path
+from app_vistas import views
+
+urlpatterns = [
+    path('admin_django/', admin.site.urls), 
+    path('', views.login_view, name='login'),
+    path('admin_dashboard/', views.admin_dashboard, name='admin_dashboard'),
+    path('reportes/', views.reporte_tutor, name='reportes'),
+    path('mis-notas/', views.mis_notas, name='mis_notas'),
+    path('ver-usuarios/', views.ver_usuarios, name='ver_usuarios'),
+]

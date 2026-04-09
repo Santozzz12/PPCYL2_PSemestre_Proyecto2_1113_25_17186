@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>IPC2-AcadNet | Reportes</title>
+    <!-- Importar Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body style="font-family: Arial; padding: 20px;">
+
+    <h2>REVISIÓN DE REPORTE PROMEDIO DE NOTAS</h2>
+
+    <!-- 1. FORMULARIO DINÁMICO -->
+    <form method="POST" style="margin-bottom: 20px;">
+        {% csrf_token %}
+        <select name="curso_select" required>
+            <option value="">-- Selecciona un curso --</option>
+            {% for c in cursos %}
+            <!-- Mantiene seleccionado el curso que eligió el tutor -->
+            <option value="{{ c.codigo }}" {% if c.codigo==curso_actual %}selected{% endif %}>
+                Curso {{ c.codigo }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">Seleccionar</button>
+
+        <!-- Botón para generar PDF -->
+        <button type="button" onclick="window.print()" style="margin-left: 20px;">Generar PDF</button>
+    </form>
+
+    <!-- 2. MOSTRAR GRÁFICAS SOLO SI HAY UN CURSO SELECCIONADO -->
+    {% if curso_actual %}
+    <!-- Contenedor de la gráfica -->
+    <div style="width: 70%; border: 5px solid grey; padding: 20px;">
+        <canvas id="graficaPromedios"></canvas>
+    </div>
+
+    <br>
+    <hr><br>
+
+    <h2>RESUMEN DE ESTRUCTURA MATRICIAL (GRAPHVIZ)</h2>
+
+    <!-- Contenedor de Graphviz -->
+    <div style="width: 70%; border: 5px solid grey; padding: 20px; text-align: center; overflow: auto;">
+        {% if grafo %}
+        <!-- Mostramos la imagen decodificada -->
+        <img src="{{ grafo }}" alt="Matriz Graphviz" style="max-width: 100%;">
+        {% else %}
+        <p style="color: red;">Error: No se pudo generar la imagen. ¿Está instalado el ejecutable de Graphviz en
+            Windows?</p>
+        {% endif %}
+    </div>
+
+    <!-- 3. SCRIPT DE CHART.JS (Solo se ejecuta si hay datos) -->
+    <script>
+        // Recibir los datos desde Django (Python) hacia JavaScript
+        const etiquetas = {{ actividades| safe }};
+        const datos = {{ promedios| safe }};
+
+        const ctx = document.getElementById('graficaPromedios').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: etiquetas,
+                datasets: [{
+                    label: 'Promedio por Actividad',
+                    data: datos,
+                    backgroundColor: '#1f77b4' // Color azul como en tu PDF
+                }]
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true, max: 100 }
+                }
+            }
+        });
+    </script>
+
+    {% else %}
+    <!-- 4. MENSAJE POR DEFECTO -->
+    <div style="text-align: center; padding: 40px; border: 1px dashed #ccc; width: 70%;">
+        <p style="color: gray; font-size: 18px;">
+            👈 Por favor, selecciona un curso en el menú superior y presiona "Seleccionar" para generar el reporte.
+        </p>
+    </div>
+    {% endif %}
+
+</body>
+
+</html>

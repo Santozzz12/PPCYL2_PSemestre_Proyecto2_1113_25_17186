@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Mis Notas</title>
+</head>
+
+<body style="font-family: Arial, sans-serif; padding: 20px;">
+    <h1>MIS NOTAS</h1>
+    <p>Estudiante Carnet: <b>{{ carnet }}</b> | Curso: <b>{{ curso }}</b></p>
+
+    <table border="1" cellpadding="10" cellspacing="0" style="width: 50%; text-align: center;">
+        <tr style="background-color: #f2f2f2;">
+            <th>Actividad</th>
+            <th>Nota</th>
+        </tr>
+        {% for item in notas %}
+        <tr>
+            <td>{{ item.actividad }}</td>
+            <td>{{ item.nota }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="2">No hay notas registradas o no te has asignado a este curso.</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+
+</html>

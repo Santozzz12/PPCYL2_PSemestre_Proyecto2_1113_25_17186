@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Revisión de Usuarios</title>
+</head>
+
+<body style="font-family: Arial, sans-serif; padding: 20px;">
+
+    <!-- Simulamos tu menú lateral -->
+    <div style="float: left; width: 20%; border-right: 1px solid #ccc; height: 100vh;">
+        <h2 style="text-align: center;">Admin</h2>
+        <hr>
+        <ul style="list-style-type: none; padding: 0;">
+            <li style="padding: 10px; border-bottom: 1px solid #eee;">Cargar Archivo</li>
+            <li style="padding: 10px; background-color: #f9f9f9; font-weight: bold;">Ver Usuarios</li>
+            <li style="padding: 10px; border-bottom: 1px solid #eee;">Información</li>
+        </ul>
+    </div>
+
+    <!-- Contenido principal -->
+    <div style="float: left; width: 75%; padding-left: 20px;">
+        <h2>REVISIÓN DE USUARIOS</h2>
+        <br>
+        <table border="1" cellpadding="10" cellspacing="0" style="width: 100%; text-align: center;">
+            <tr style="background-color: #e0e0e0;">
+                <th>ID / Carnet</th>
+                <th>Rol</th>
+                <th>Contraseña</th>
+            </tr>
+            {% for u in usuarios %}
+            <tr>
+                <td>{{ u.id }}</td>
+                <td>{{ u.rol }}</td>
+                <td>{{ u.contrasenia }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3">No hay usuarios cargados en el sistema actualmente.</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+</body>
+
+</html>
