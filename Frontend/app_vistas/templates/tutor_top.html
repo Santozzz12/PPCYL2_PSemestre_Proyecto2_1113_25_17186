@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>IPC2-AcadNet | Reportes de Tutor</title>
+    <title>IPC2-AcadNet | Top de Notas</title>
     <!-- Importar Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Google Fonts -->
@@ -11,10 +11,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #4F46E5;
-            --primary-hover: #4338CA;
+            --primary: #10B981; /* Emerald */
+            --primary-hover: #059669;
             --bg-gradient-start: #0F172A;
-            --bg-gradient-end: #1E1B4B;
+            --bg-gradient-end: #064E3B; /* Deep green tint */
             --surface: rgba(30, 41, 59, 0.7);
             --surface-border: rgba(255, 255, 255, 0.1);
             --text-main: #F8FAFC;
@@ -48,7 +48,7 @@
             margin-top: 5px;
             letter-spacing: -0.5px;
             text-transform: uppercase;
-            background: linear-gradient(to right, #818CF8, #C084FC);
+            background: linear-gradient(to right, #34D399, #10B981);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -77,7 +77,7 @@
             flex-wrap: wrap;
         }
 
-        select {
+        select, input[type="text"] {
             background: rgba(15, 23, 42, 0.6);
             color: white;
             border: 1px solid var(--surface-border);
@@ -87,19 +87,26 @@
             font-size: 1rem;
             outline: none;
             transition: border-color 0.2s, box-shadow 0.2s;
-            cursor: pointer;
             flex-grow: 1;
             min-width: 200px;
         }
 
-        select:focus {
+        select {
+            cursor: pointer;
+        }
+
+        select:focus, input[type="text"]:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);
         }
         
         select option {
             background-color: #1E293B;
             color: white;
+        }
+        
+        input[type="text"]::placeholder {
+            color: rgba(255, 255, 255, 0.4);
         }
 
         button {
@@ -113,13 +120,13 @@
             font-size: 1rem;
             cursor: pointer;
             transition: all 0.2s;
-            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.4);
+            box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.4);
         }
 
         button:hover {
             background: var(--primary-hover);
             transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.5);
+            box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.5);
         }
 
         button.secondary {
@@ -137,20 +144,6 @@
             width: 100%;
             height: 400px;
             position: relative;
-        }
-        
-        .img-container {
-            text-align: center;
-            overflow: auto;
-            border-radius: 8px;
-            background: rgba(0,0,0,0.2);
-            padding: 15px;
-        }
-
-        .img-container img {
-            max-width: 100%;
-            border-radius: 8px;
-            filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.5));
         }
 
         .empty-state {
@@ -175,6 +168,8 @@
             padding: 15px;
             border-radius: 8px;
             border: 1px solid rgba(239, 68, 68, 0.3);
+            text-align: center;
+            font-size: 1.1rem;
         }
 
         @keyframes pulse {
@@ -214,19 +209,22 @@
     <div class="container">
         <!-- Controles -->
         <div class="glass-card">
-            <h2>Gestión de Reportes</h2>
+            <h2>🥇 Top de Notas por Actividad</h2>
             <form method="POST" class="controls-group">
                 {% csrf_token %}
                 <select name="curso_select" required>
-                    <option value="" disabled {% if not curso_actual %}selected{% endif %}>Selecciona un curso de la lista...</option>
+                    <option value="" disabled {% if not curso_actual %}selected{% endif %}>Selecciona un curso...</option>
                     {% for c in cursos %}
                     <option value="{{ c.codigo }}" {% if c.codigo == curso_actual %} selected {% endif %}>
                         Curso {{ c.codigo }}
                     </option>
                     {% endfor %}
                 </select>
-                <button type="submit">Generar Reporte</button>
-                {% if curso_actual %}
+
+                <input type="text" name="actividad_txt" placeholder="Ej: Tarea 1" value="{{ actividad_actual|default:'' }}" required>
+
+                <button type="submit">Generar Top</button>
+                {% if curso_actual and carnets %}
                 <button type="button" class="secondary" onclick="window.print()">
                     🖨️ Exportar a PDF
                 </button>
@@ -235,108 +233,99 @@
         </div>
 
         {% if curso_actual %}
-        <!-- Gráfica -->
-        <div class="glass-card">
-            <h2>Promedio de Notas</h2>
-            <div class="graph-container">
-                <canvas id="graficaPromedios"></canvas>
-            </div>
-        </div>
-
-        <!-- Graphviz -->
-        <div class="glass-card">
-            <h2>Resumen Estructura Matricial</h2>
-            <div class="img-container">
-                {% if grafo %}
-                <img src="{{ grafo }}" alt="Matriz Graphviz">
-                {% else %}
-                <div class="error-text">
-                    ⚠️ Error: No se pudo generar la imagen. Verifica que Graphviz (dot) esté instalado y configurado en las variables de entorno de Windows.
+            {% if carnets %}
+            <!-- Gráfica -->
+            <div class="glass-card">
+                <h2>Mejores Punteos Confirmados</h2>
+                <div class="graph-container">
+                    <canvas id="graficaTop"></canvas>
                 </div>
-                {% endif %}
             </div>
-        </div>
 
-        <!-- Script de Chart.js configurado para modo oscuro -->
-        <script>
-            const etiquetas = {{ actividades|safe }};
-            const datos = {{ promedios|safe }};
+            <!-- Script de Chart.js configurado para modo oscuro (Verde Esmeralda) -->
+            <script>
+                // Customización global de Chart.js para que luzca bien en dark mode
+                Chart.defaults.color = '#94A3B8';
+                Chart.defaults.font.family = "'Inter', sans-serif";
 
-            // Customización global de Chart.js para que luzca bien en dark mode
-            Chart.defaults.color = '#94A3B8';
-            Chart.defaults.font.family = "'Inter', sans-serif";
+                const ctx = document.getElementById('graficaTop').getContext('2d');
+                
+                // Crear un gradiente para las barras
+                let barGradient = ctx.createLinearGradient(0, 0, 0, 400);
+                barGradient.addColorStop(0, 'rgba(52, 211, 153, 0.9)');  // Emerald claro
+                barGradient.addColorStop(1, 'rgba(16, 185, 129, 0.9)');   // Emerald oscuro
 
-            const ctx = document.getElementById('graficaPromedios').getContext('2d');
-            
-            // Crear un gradiente para las barras
-            let barGradient = ctx.createLinearGradient(0, 0, 0, 400);
-            barGradient.addColorStop(0, 'rgba(129, 140, 248, 0.9)'); // Indigo claro
-            barGradient.addColorStop(1, 'rgba(79, 70, 229, 0.9)');    // Indigo oscuro
-
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: etiquetas,
-                    datasets: [{
-                        label: 'Promedio Obtenido',
-                        data: datos,
-                        backgroundColor: barGradient,
-                        borderRadius: 6,
-                        borderWidth: 0,
-                        barPercentage: 0.6
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            labels: {
-                                font: { size: 14, weight: '600' }
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                            titleFont: { size: 14, family: 'Inter' },
-                            bodyFont: { size: 14, family: 'Inter' },
-                            padding: 12,
-                            cornerRadius: 8,
-                            displayColors: false
-                        }
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: {{ carnets|safe }},
+                        datasets: [{
+                            label: 'Notas de {{ actividad_actual }}',
+                            data: {{ notas|safe }},
+                            backgroundColor: barGradient,
+                            borderRadius: 6,
+                            borderWidth: 0,
+                            barPercentage: 0.6
+                        }]
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.05)',
-                                drawBorder: false
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    font: { size: 14, weight: '600' }
+                                }
                             },
-                        },
-                        x: {
-                            grid: {
-                                display: false,
-                                drawBorder: false
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                titleFont: { size: 14, family: 'Inter' },
+                                bodyFont: { size: 14, family: 'Inter' },
+                                padding: 12,
+                                cornerRadius: 8,
+                                displayColors: false
                             }
-                        }
-                    },
-                    animation: {
-                        y: {
-                            duration: 1000,
-                            easing: 'easeOutQuart'
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.05)',
+                                    drawBorder: false
+                                },
+                            },
+                            x: {
+                                grid: {
+                                    display: false,
+                                    drawBorder: false
+                                }
+                            }
+                        },
+                        animation: {
+                            y: {
+                                duration: 1000,
+                                easing: 'easeOutQuart'
+                            }
                         }
                     }
-                }
-            });
-        </script>
-
+                });
+            </script>
+            {% else %}
+            <!-- Error State -->
+            <div class="glass-card">
+                <div class="error-text">
+                    ⚠️ No se encontraron notas para la actividad "<strong>{{ actividad_actual }}</strong>" en el curso {{ curso_actual }}.
+                </div>
+            </div>
+            {% endif %}
         {% else %}
         <!-- Estado inicial -->
         <div class="empty-state">
             <svg style="width: 60px; height: 60px; margin-bottom: 20px; opacity: 0.6; color: #94A3B8;" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
             </svg>
-            <p>Selecciona un curso en el panel superior para visualizar su reporte estadístico.</p>
+            <p>Selecciona un curso e ingresa una actividad para generar el Top de notas.</p>
         </div>
         {% endif %}
 

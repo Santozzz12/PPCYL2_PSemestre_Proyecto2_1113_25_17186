@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Carga de Horarios - Tutor</title>
+</head>
+
+<body style="font-family: Arial, sans-serif; padding: 20px;">
+
+    <h2>CARGA DE HORARIOS (FILTRO POR REGEX)</h2>
+    <p>Pega aquí el contenido de tu archivo XML. El sistema extraerá automáticamente los horarios usando Expresiones
+        Regulares.</p>
+
+    <form method="POST">
+        {% csrf_token %}
+        <textarea name="contenido_xml" rows="10" style="width: 100%; max-width: 600px; padding: 10px;"
+            placeholder="<horarios>\n  <curso>IPC2</curso>\n  <disponibilidad>HorarioI: 08:00 HorarioF: 10:00</disponibilidad>\n</horarios>"
+            required></textarea>
+        <br><br>
+        <button type="submit" style="padding: 10px 20px;">Extraer Horarios</button>
+    </form>
+
+    <br>
+    <hr><br>
+
+    {% if horarios %}
+    <h3>Horarios Detectados:</h3>
+    <table border="1" cellpadding="10" cellspacing="0" style="width: 50%; text-align: center;">
+        <tr style="background-color: #e0e0e0;">
+            <th>No.</th>
+            <th>Hora de Inicio</th>
+            <th>Hora de Fin</th>
+        </tr>
+        {% for h in horarios %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td style="color: green; font-weight: bold;">{{ h.inicio }}</td>
+            <td style="color: red; font-weight: bold;">{{ h.fin }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+
+</body>
+
+</html>

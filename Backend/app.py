@@ -3,6 +3,7 @@ import graphviz
 import base64
 from flask import Flask, request, jsonify
 import xml.etree.ElementTree as ET
+import re
 
 # Importamos la lógica de las Fases 1 y 2
 from xml_processor import extraer_horario_con_pila
@@ -243,7 +244,60 @@ def obtener_usuarios():
             "contrasenia": datos.get("contrasenia", "")
         })
         
-    return jsonify({"usuarios": lista_usuarios}), 200  
+    return jsonify({"usuarios": lista_usuarios}), 200 
+@app.route('/api/cursos', methods=['GET'])
+def obtener_cursos():
+    # Extraemos todos los códigos de los cursos que están en la matriz
+    lista_cursos = [{"codigo": codigo} for codigo in db_cursos.keys()]
+    return jsonify({"cursos": lista_cursos}), 200
+@app.route('/api/tutor/horarios', methods=['POST'])
+def procesar_horarios():
+    datos = request.json
+    texto = datos.get('texto', '')
+    
+    # Expresión regular que busca exactamente el formato del PDF: 
+    # Busca "HorarioI:", ignora espacios, saca los números "HH:MM", busca "HorarioF:" y saca "HH:MM"
+    patron = r'HorarioI:\s*(\d{2}:\d{2})\s*HorarioF:\s*(\d{2}:\d{2})'
+    
+    # findall busca todas las coincidencias en el texto
+    coincidencias = re.findall(patron, texto)
+    
+    lista_horarios = []
+    for inicio, fin in coincidencias:
+        lista_horarios.append({
+            "inicio": inicio,
+            "fin": fin
+        })
+        
+    return jsonify({"horarios": lista_horarios}), 200
+@app.route('/api/tutor/top_notas/<curso>/<actividad>', methods=['GET'])
+def top_notas(curso, actividad):
+    if curso not in db_cursos:
+        return jsonify({"error": "Curso no encontrado"}), 404
+        
+    matriz = db_cursos[curso]
+    estudiantes = matriz.obtener_estudiantes()
+    lista_notas = []
+    
+    for carnet in estudiantes:
+        actual = matriz.estudiantes.cabeza
+        while actual:
+            if actual.carnet == carnet:
+                nota_nodo = actual.notas.cabeza
+                while nota_nodo:
+                    if nota_nodo.actividad == actividad:
+                        lista_notas.append({"carnet": carnet, "nota": float(nota_nodo.punteo)})
+                        break
+                    nota_nodo = nota_nodo.siguiente
+                break
+            actual = actual.abajo
+            
+    lista_notas.sort(key=lambda x: x['nota'], reverse=True)
+    
+    carnets = [str(item["carnet"]) for item in lista_notas]
+    notas = [item["nota"] for item in lista_notas]
+    
+    return jsonify({"carnets": carnets, "notas": notas}), 200
 
 if __name__ == '__main__':
     # Levantamos el servidor en el puerto 5001 según tu arquitectura
