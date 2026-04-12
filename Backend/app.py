@@ -4,12 +4,24 @@ import base64
 from flask import Flask, request, jsonify
 import xml.etree.ElementTree as ET
 import re
+from flasgger import Swagger
+from flask import redirect
 
 # Importamos la lógica de las Fases 1 y 2
 from xml_processor import extraer_horario_con_pila
 from matriz_dispersa import MatrizDispersa
 
 app = Flask(__name__)
+app.config['SWAGGER'] = {
+    'title': 'AcadNet API Documentation',
+    'uiversion': 3
+}
+swagger = Swagger(app)
+
+@app.route('/')
+def index():
+    # Si alguien entra a la raíz, lo mandamos directo a la documentación
+    return redirect('/apidocs/')
 
 # ========================================================
 # SIMULACIÓN DE BASE DE DATOS (En memoria)
@@ -31,7 +43,19 @@ db_estudiantes = {
 
 @app.route('/api/admin/cargar_xml', methods=['POST'])
 def cargar_configuracion():
-    """Recibe el XML de configuración, lo parsea y devuelve estadísticas JSON."""
+    """
+    Carga masiva de usuarios (Tutores y Estudiantes) desde XML.
+    ---
+    tags:
+      - Administrador
+    consumes:
+      - application/xml
+    responses:
+      200:
+        description: Usuarios cargados exitosamente.
+      400:
+        description: XML mal formado.
+    """
     xml_data = request.data.decode('utf-8')
     try:
         root = ET.fromstring(xml_data)
@@ -138,22 +162,45 @@ def obtener_promedios(curso):
     
     return jsonify({"actividades": actividades, "promedios": promedios}), 200
 
-@app.route('/api/tutor/notas/top/<curso>/<actividad>', methods=['GET'])
-def obtener_top_notas(curso, actividad):
-    """Devuelve las notas de una actividad ordenadas de mayor a menor."""
+@app.route('/api/tutor/top_notas/<curso>/<actividad>', methods=['GET'])
+def top_notas(curso, actividad):
+    """
+    Obtiene el listado ordenado de mejores notas por actividad.
+    ---
+    tags:
+      - Tutor
+    parameters:
+      - name: curso
+        in: path
+        type: string
+        required: true
+      - name: actividad
+        in: path
+        type: string
+        required: true
+    responses:
+      200:
+        description: Listado de notas ordenadas.
+    """
     if curso not in db_cursos:
-        return jsonify({"error": "Curso no encontrado", "carnets": [], "notas": []}), 404
+        return jsonify({"error": "Curso no encontrado"}), 404
         
     matriz = db_cursos[curso]
-    diccionario_notas = matriz.notas_por_actividad(actividad)
     
-    # Ordenar de mayor a menor
-    notas_ordenadas = sorted(diccionario_notas.items(), key=lambda x: x[1], reverse=True)
-    
-    carnets = [item[0] for item in notas_ordenadas]
-    notas = [item[1] for item in notas_ordenadas]
-    
-    return jsonify({"carnets": carnets, "notas": notas}), 200
+    try:
+        # Usamos la función que YA sabemos que funciona para tu gráfica
+        diccionario_notas = matriz.notas_por_actividad(actividad)
+        
+        # Ordenar de mayor a menor
+        notas_ordenadas = sorted(diccionario_notas.items(), key=lambda x: x[1], reverse=True)
+        
+        carnets = [str(item[0]) for item in notas_ordenadas]
+        notas = [float(item[1]) for item in notas_ordenadas]
+        
+        return jsonify({"carnets": carnets, "notas": notas}), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Error interno: {str(e)}"}), 500
 
 @app.route('/api/tutor/reporte/graphviz/<curso>', methods=['GET'])
 def reporte_graphviz(curso):
@@ -188,6 +235,29 @@ def reporte_graphviz(curso):
     return jsonify({"imagen_url": url_img}), 200
 @app.route('/api/login', methods=['POST'])
 def login():
+    """
+    Autenticación de usuarios por Rol.
+    ---
+    tags:
+      - Seguridad
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          properties:
+            usuario:
+              type: string
+              example: AdminPPCYL2
+            contrasenia:
+              type: string
+              example: AdminPPCYL2771
+    responses:
+      200:
+        description: Login exitoso con retorno de Rol.
+      401:
+        description: Credenciales incorrectas.
+    """
     datos = request.json
     usuario = datos.get('usuario', '')
     contrasenia = datos.get('contrasenia', '')
@@ -270,34 +340,6 @@ def procesar_horarios():
         })
         
     return jsonify({"horarios": lista_horarios}), 200
-@app.route('/api/tutor/top_notas/<curso>/<actividad>', methods=['GET'])
-def top_notas(curso, actividad):
-    if curso not in db_cursos:
-        return jsonify({"error": "Curso no encontrado"}), 404
-        
-    matriz = db_cursos[curso]
-    estudiantes = matriz.obtener_estudiantes()
-    lista_notas = []
-    
-    for carnet in estudiantes:
-        actual = matriz.estudiantes.cabeza
-        while actual:
-            if actual.carnet == carnet:
-                nota_nodo = actual.notas.cabeza
-                while nota_nodo:
-                    if nota_nodo.actividad == actividad:
-                        lista_notas.append({"carnet": carnet, "nota": float(nota_nodo.punteo)})
-                        break
-                    nota_nodo = nota_nodo.siguiente
-                break
-            actual = actual.abajo
-            
-    lista_notas.sort(key=lambda x: x['nota'], reverse=True)
-    
-    carnets = [str(item["carnet"]) for item in lista_notas]
-    notas = [item["nota"] for item in lista_notas]
-    
-    return jsonify({"carnets": carnets, "notas": notas}), 200
 
 if __name__ == '__main__':
     # Levantamos el servidor en el puerto 5001 según tu arquitectura
