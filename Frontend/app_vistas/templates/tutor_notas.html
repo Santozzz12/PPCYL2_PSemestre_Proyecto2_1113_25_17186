@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Carga de Notas - Tutor</title>
+    <style>
+        body {
+            background-color: #1a1a2e;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: #16213e;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            width: 80%;
+            max-width: 600px;
+        }
+
+        h1 {
+            color: #8a2be2;
+            text-align: center;
+        }
+
+        textarea {
+            width: 100%;
+            height: 250px;
+            background-color: #0f3460;
+            color: #fff;
+            border: 1px solid #8a2be2;
+            border-radius: 5px;
+            padding: 10px;
+            font-family: monospace;
+            resize: vertical;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background-color: #8a2be2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            transition: 0.3s;
+        }
+
+        .btn:hover {
+            background-color: #9b4dca;
+        }
+
+        .mensaje {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            background-color: #e94560;
+        }
+
+        .exito {
+            background-color: #28a745;
+        }
+
+        .volver {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: #aaa;
+            text-decoration: none;
+        }
+
+        .volver:hover {
+            color: #fff;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>Inyectar Notas (XML)</h1>
+
+        <form method="POST">
+            {% csrf_token %}
+            <label for="texto_xml">Pega aquí el código XML de las notas:</label>
+            <textarea name="texto_xml" id="texto_xml" required></textarea>
+
+            <button type="submit" name="btn_procesar" class="btn">Procesar XML a Matriz Dispersa</button>
+        </form>
+
+        {% if mensaje %}
+        <div class="mensaje {% if 'Éxito' in mensaje %}exito{% endif %}">
+            {{ mensaje }}
+        </div>
+        {% endif %}
+
+        <a href="{% url 'reportes' %}" class="volver">← Volver al panel de Reportes</a>
+    </div>
+
+</body>
+
+</html>

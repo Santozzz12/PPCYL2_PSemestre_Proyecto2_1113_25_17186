@@ -36,61 +36,70 @@ db_tutores = {
 db_estudiantes = {
     "1234": {"contrasenia": "1234", "nombre": "estudiante 1"}
 }
-
+db_asignaciones_estudiantes = {} # Guardará { "1234": ["770", "771"] }
 # ========================================================
 # ENDPOINTS (RUTAS HTTP)
 # ========================================================
 
 @app.route('/api/admin/cargar_xml', methods=['POST'])
 def cargar_configuracion():
-    """
-    Carga masiva de usuarios (Tutores y Estudiantes) desde XML.
-    ---
-    tags:
-      - Administrador
-    consumes:
-      - application/xml
-    responses:
-      200:
-        description: Usuarios cargados exitosamente.
-      400:
-        description: XML mal formado.
-    """
     xml_data = request.data.decode('utf-8')
     try:
         root = ET.fromstring(xml_data)
         
-        # 1. Extraer y guardar Tutores
-        tutores_cargados = 0
-        for tutor in root.findall('.//tutor'):
+        # 1. Cargar Cursos
+        for curso in root.iter('curso'):
+            codigo = curso.get('codigo')
+            if codigo and codigo not in db_cursos:
+                db_cursos[codigo] = MatrizDispersa(codigo)
+
+        # 2. Cargar Tutores
+        for tutor in root.iter('tutor'):
             reg = tutor.get('registro_personal')
             pwd = tutor.get('contrasenia')
-            nombre = tutor.text
-            db_usuarios["tutores"][reg] = {"nombre": nombre, "password": pwd}
-            tutores_cargados += 1
+            nom = tutor.text.strip() if tutor.text else "Sin nombre"
+            if reg and pwd:
+                db_tutores[reg] = {"nombre": nom, "contrasenia": pwd}
             
-        # 2. Extraer y guardar Estudiantes
+        # 3. Cargar Estudiantes
         estudiantes_cargados = 0
-        for est in root.findall('.//estudiante'):
+        for est in root.iter('estudiante'):
             carnet = est.get('carnet')
             pwd = est.get('contrasenia')
-            nombre = est.text
-            db_usuarios["estudiantes"][carnet] = {"nombre": nombre, "password": pwd}
-            estudiantes_cargados += 1
+            nom = est.text.strip() if est.text else "Sin nombre"
+            if carnet and pwd:
+                db_estudiantes[carnet] = {"nombre": nom, "contrasenia": pwd}
+                estudiantes_cargados += 1
 
-        # El frontend de Django usará este JSON para crear el XML de salida
+        # 4. AQUÍ PONES EL BLOQUE DE ASIGNACIONES
+        asignaciones_cargadas = 0
+        for asig in root.iter('estudiante_curso'):
+            codigo_curso = asig.get('codigo')
+            carnet = asig.text.strip() if asig.text else ""
+            
+            if carnet and codigo_curso:
+                if carnet not in db_asignaciones_estudiantes:
+                    db_asignaciones_estudiantes[carnet] = []
+                if codigo_curso not in db_asignaciones_estudiantes[carnet]:
+                    db_asignaciones_estudiantes[carnet].append(codigo_curso)
+                    asignaciones_cargadas += 1
+        
+        # Este print te confirmará en la consola si se guardaron bien
+        print(f"DEBUG: Asignaciones guardadas: {db_asignaciones_estudiantes}")
+
         return jsonify({
-            "mensaje": "Archivo de configuración procesado correctamente",
+            "mensaje": "Configuración cargada exitosamente",
             "estadisticas": {
-                "tutores_cargados": tutores_cargados,
-                "estudiantes_cargados": estudiantes_cargados
+                "tutores": len(db_tutores),
+                "estudiantes": estudiantes_cargados,
+                "asignaciones": asignaciones_cargadas,
+                "cursos": len(db_cursos)
             }
         }), 200
 
-    except ET.ParseError:
-        return jsonify({"error": "El archivo XML está mal formado"}), 400
-
-
+    except Exception as e:
+        print(f"ERROR EN CARGA: {str(e)}")
+        return jsonify({"error": str(e)}), 400
 @app.route('/api/tutor/horarios/cargar', methods=['POST'])
 def cargar_horarios():
     """Recibe XML de horarios y usa la regex con pilas para limpiar la cadena."""
@@ -233,67 +242,38 @@ def reporte_graphviz(curso):
     url_img = f"https://quickchart.io/graphviz?graph={dot_encoded}"
     
     return jsonify({"imagen_url": url_img}), 200
-@app.route('/api/login', methods=['POST'])
+@app.route('/api/login/', methods=['POST'])
 def login():
-    """
-    Autenticación de usuarios por Rol.
-    ---
-    tags:
-      - Seguridad
-    parameters:
-      - name: body
-        in: body
-        required: true
-        schema:
-          properties:
-            usuario:
-              type: string
-              example: AdminPPCYL2
-            contrasenia:
-              type: string
-              example: AdminPPCYL2771
-    responses:
-      200:
-        description: Login exitoso con retorno de Rol.
-      401:
-        description: Credenciales incorrectas.
-    """
-    datos = request.json
-    usuario = datos.get('usuario', '')
-    contrasenia = datos.get('contrasenia', '')
+    try:
+        datos = request.get_json()
+        if not datos:
+            return jsonify({"error": "No se recibió JSON"}), 400
 
-    # 1. Verificar si es el Administrador (Credenciales quemadas por el documento)
-    if usuario == "AdminPPCYL2" and contrasenia == "AdminPPCYL2771":
-        return jsonify({"mensaje": "Bienvenido Admin", "rol": "admin"}), 200
+        usuario = str(datos.get('usuario', '')).strip()
+        contrasenia = str(datos.get('contrasenia', '')).strip()
 
-    # 2. Verificar si es Tutor
-    if usuario in db_tutores and db_tutores[usuario].get('contrasenia') == contrasenia:
-        return jsonify({"mensaje": "Bienvenido Tutor", "rol": "tutor"}), 200
+        print(f"--- INTENTO DE LOGIN ---")
+        print(f"Usuario recibido: [{usuario}]")
+        print(f"Clave recibida: [{contrasenia}]")
 
-    # 3. Verificar si es Estudiante
-    if usuario in db_estudiantes and db_estudiantes[usuario].get('contrasenia') == contrasenia:
-        return jsonify({"mensaje": "Bienvenido Estudiante", "rol": "estudiante"}), 200
+        # 1. Admin
+        if usuario == "AdminPPCYL2" and contrasenia == "AdminPPCYL2771":
+            return jsonify({"mensaje": "Bienvenido Admin", "rol": "admin"}), 200
 
-    # Si no es ninguno, rechazar acceso
-    return jsonify({"error": "Credenciales incorrectas"}), 401
-@app.route('/api/estudiante/notas/<curso>/<carnet>', methods=['GET'])
-def notas_estudiante(curso, carnet):
-    if curso not in db_cursos:
-        return jsonify({"error": "Curso no encontrado"}), 404
-        
-    matriz = db_cursos[curso]
-    resultados = []
-    
-    # Recorremos todas las filas (actividades) buscando el carnet (columna)
-    for actividad in matriz.filas():
-        nota = matriz.obtener(actividad, carnet)
-        if nota > 0: # Solo enviamos las actividades donde sí tiene nota
-            resultados.append({
-                "actividad": actividad,
-                "nota": nota
-            })
-            
-    return jsonify({"carnet": carnet, "notas": resultados}), 200 
+        # 2. Tutor
+        if usuario in db_tutores:
+            if str(db_tutores[usuario].get('contrasenia')) == contrasenia:
+                return jsonify({"mensaje": "Bienvenido Tutor", "rol": "tutor"}), 200
+
+        # 3. Estudiante
+        if usuario in db_estudiantes:
+            if str(db_estudiantes[usuario].get('contrasenia')) == contrasenia:
+                return jsonify({"mensaje": "Bienvenido Estudiante", "rol": "estudiante"}), 200
+
+        return jsonify({"error": "Credenciales incorrectas"}), 401
+    except Exception as e:
+        print(f"ERROR CRÍTICO EN LOGIN: {str(e)}")
+        return jsonify({"error": "Error interno del servidor"}), 500 
 @app.route('/api/admin/usuarios', methods=['GET'])
 def obtener_usuarios():
     lista_usuarios = []
@@ -340,8 +320,38 @@ def procesar_horarios():
         })
         
     return jsonify({"horarios": lista_horarios}), 200
+    # --- RUTA PARA QUE EL ESTUDIANTE PIDA SUS CURSOS ---
+# --- ESTA ES LA RUTA QUE TE FALTA Y POR ESO DA 404 ---
+@app.route('/api/estudiante/<carnet>/cursos', methods=['GET'])
+def obtener_cursos_del_estudiante(carnet):
+    # db_asignaciones_estudiantes es el diccionario que ya vimos que sí tiene datos
+    lista_de_cursos = db_asignaciones_estudiantes.get(str(carnet), [])
+    return jsonify({"cursos": lista_de_cursos}), 200
+@app.route('/api/estudiante/notas/<curso>/<carnet>', methods=['GET'])
+def obtener_notas_estudiante(curso, carnet):
+    if curso not in db_cursos:
+        return jsonify({"notas": []}), 404
+    
+    matriz = db_cursos[curso]
+    notas_encontradas = []
+    
+    # 1. Obtenemos la lista de nombres de actividades (filas)
+    # Como en tu clase 'filas' es un método, lo llamamos con ()
+    nombres_actividades = matriz.filas() 
+    
+    # 2. Recorremos cada actividad buscando el carnet del estudiante
+    for actividad in nombres_actividades:
+        # Usamos tu método 'obtener' que ya busca por fila y columna
+        nota = matriz.obtener(actividad, carnet)
+        
+        # Si la nota es mayor a 0 (o si quieres mostrar todas, quita el if)
+        if nota > 0:
+            notas_encontradas.append({
+                "actividad": actividad,
+                "nota": nota
+            })
 
+    print(f"✅ Notas encontradas para {carnet}: {notas_encontradas}")
+    return jsonify({"notas": notas_encontradas}), 200
 if __name__ == '__main__':
-    # Levantamos el servidor en el puerto 5001 según tu arquitectura
-    print("Iniciando Servicio 2 (Backend API) en http://localhost:5001")
     app.run(port=5001, debug=True)

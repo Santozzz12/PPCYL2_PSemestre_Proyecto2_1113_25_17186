@@ -3,41 +3,41 @@ import requests
 
 API_URL = "http://127.0.0.1:5001/api"
 
+# --- VISTA DE LOGIN ---
 def login_view(request):
     if request.method == 'POST':
         usu = request.POST.get('usuario')
         contra = request.POST.get('contrasenia')
 
         try:
-            # Preguntarle a Flask si el usuario existe
-            respuesta = requests.post(f"{API_URL}/login", json={"usuario": usu, "contrasenia": contra})
+            respuesta = requests.post(f"{API_URL}/login/", json={"usuario": usu, "contrasenia": contra})
             
             if respuesta.status_code == 200:
                 datos = respuesta.json()
                 rol = datos.get('rol')
                 
-                # Guardar datos en la "sesión" de Django para no perderlos al cambiar de página
                 request.session['usuario'] = usu
                 request.session['rol'] = rol
                 
-                # Redirecciones dinámicas según el rol
                 if rol == 'admin':
-                    return redirect('ver_usuarios') # Cambia esto por el name de tu url de admin
+                    return redirect('admin_dashboard')
                 elif rol == 'tutor':
-                    return redirect('reportes') # Por ahora enviamos al tutor directo a reportes
+                    # ¡AQUÍ ESTÁ LA CORRECCIÓN! Ahora usa 'reportes' que es el nombre en urls.py
+                    return redirect('reportes') 
                 elif rol == 'estudiante':
-                    return redirect('mis_notas') # Esta url la crearemos en el siguiente paso
+                    return redirect('mis_notas')
             else:
                 return render(request, 'login.html', {'error': "Usuario o contraseña incorrectos"})
         except Exception as e:
-            return render(request, 'login.html', {'error': "Error de conexión con el servidor Flask"})
+            # ESTO IMPRIMIRÁ EL ERROR REAL EN LA TERMINAL DE DJANGO
+            print(f"!!! ERROR REAL EN DJANGO: {str(e)}") 
+            return render(request, 'login.html', {'error': f"Error interno: {str(e)}"})
 
-    # Si entra normal (GET), solo mostrar la pantalla
     return render(request, 'login.html')
 
+# --- VISTAS DEL ADMINISTRADOR ---
 def admin_dashboard(request):
-    # Hack temporal para que te deje entrar a cargar el XML sin pelear con el Login
-    if 1 == 2:
+    if request.session.get('rol') != 'admin':
         return redirect('login')
 
     contexto = {'xml_entrada': '', 'xml_salida': ''}
@@ -54,85 +54,17 @@ def admin_dashboard(request):
             xml_contenido = request.POST.get('texto_xml')
             contexto['xml_entrada'] = xml_contenido
             try:
-                # Asegúrate de que API_URL esté definida arriba en tu archivo
-                respuesta = requests.post(f"{API_URL}/admin/matriz", json={"xml": xml_contenido})
+                respuesta = requests.post(f"{API_URL}/admin/cargar_xml", data=xml_contenido.encode('utf-8'), headers={'Content-Type': 'application/xml'})
                 if respuesta.status_code == 200:
-                    contexto['xml_salida'] = "Éxito al enviar a Flask"
+                    contexto['xml_salida'] = respuesta.text
             except:
-                pass
+                contexto['xml_salida'] = "Error de conexión con el Backend"
 
-    # Este es el return que estaba chueco, aquí ya está alineado
     return render(request, 'admin.html', contexto)
 
-def reporte_tutor(request):
-    # 1. Obtener la lista de cursos disponibles para llenar el menú <select>
-    lista_cursos = []
-    try:
-        resp_cursos = requests.get(f"{API_URL}/cursos")
-        if resp_cursos.status_code == 200:
-            lista_cursos = resp_cursos.json().get("cursos", [])
-    except:
-        pass
-
-    # 2. Variables vacías por defecto (por si apenas entró a la página y no ha seleccionado nada)
-    curso_seleccionado = None
-    actividades = []
-    promedios = []
-    imagen_graphviz = ""
-
-    # 3. Detectar si el tutor presionó el botón "Seleccionar"
-    if request.method == 'POST':
-        curso_seleccionado = request.POST.get('curso_select')
-
-    # 4. Si YA seleccionó un curso, entonces sí hacemos las peticiones a Flask
-    if curso_seleccionado:
-        try:
-            # Petición 1: Las gráficas (Chart.js / Plotly)
-            respuesta = requests.get(f"{API_URL}/tutor/notas/promedio/{curso_seleccionado}")
-            if respuesta.status_code == 200:
-                datos = respuesta.json()
-                actividades = datos.get("actividades", [])
-                promedios = datos.get("promedios", [])
-
-            # Petición 2: La imagen de Graphviz
-            resp_grafo = requests.get(f"{API_URL}/tutor/reporte/graphviz/{curso_seleccionado}")
-            if resp_grafo.status_code == 200:
-                imagen_graphviz = resp_grafo.json().get("imagen_url", "")
-        except:
-            pass
-
-    # 5. Enviamos todo al HTML
-    contexto = {
-        'cursos': lista_cursos,              # La lista para armar el menú desplegable
-        'curso_actual': curso_seleccionado,  # El curso que eligió (para que la gráfica sepa de quién es)
-        'actividades': actividades,
-        'promedios': promedios,
-        'grafo': imagen_graphviz
-    }
-    return render(request, 'tutor_reportes.html', contexto)
-def mis_notas(request):
-    # Sacamos el carnet de la sesión (del login)
-    carnet = request.session.get('usuario') 
-    curso_prueba = "770" # Mantenemos el curso de prueba por ahora
-    notas_estudiante = []
-    
-    try:
-        respuesta = requests.get(f"{API_URL}/estudiante/notas/{curso_prueba}/{carnet}")
-        if respuesta.status_code == 200:
-            notas_estudiante = respuesta.json().get("notas", [])
-    except:
-        pass
-        
-    contexto = {
-        'carnet': carnet,
-        'curso': curso_prueba,
-        'notas': notas_estudiante
-    }
-    return render(request, 'mis_notas.html', contexto)
 def ver_usuarios(request):
-    # Pequeña validación de seguridad
     if request.session.get('rol') != 'admin':
-        return redirect('login') # Si no es admin, lo pateamos al login
+        return redirect('login')
 
     usuarios_cargados = []
     try:
@@ -143,23 +75,108 @@ def ver_usuarios(request):
         pass
         
     return render(request, 'ver_usuarios.html', {'usuarios': usuarios_cargados})
-def horarios_tutor(request):
+
+# --- VISTAS DEL TUTOR ---
+
+def tutor_horarios(request):
     if request.session.get('rol') != 'tutor':
         return redirect('login')
 
-    horarios_extraidos = []
-    
+    contexto = {'xml_entrada': '', 'horarios': []}
+
     if request.method == 'POST':
-        texto_xml = request.POST.get('contenido_xml', '')
+        if 'btn_limpiar' in request.POST:
+            return render(request, 'tutor_horarios.html', contexto)
+
+        if 'btn_cargar' in request.POST and 'archivo_xml' in request.FILES:
+            archivo = request.FILES['archivo_xml']
+            contexto['xml_entrada'] = archivo.read().decode('utf-8')
+
+        if 'btn_procesar' in request.POST:
+            xml_contenido = request.POST.get('texto_xml')
+            contexto['xml_entrada'] = xml_contenido
+            try:
+                # Enviamos el XML a la ruta de Flask que usa Regex y Pilas
+                respuesta = requests.post(f"{API_URL}/tutor/horarios/cargar", data=xml_contenido.encode('utf-8'), headers={'Content-Type': 'application/xml'})
+                if respuesta.status_code == 200:
+                    contexto['horarios'] = respuesta.json().get("horarios", [])
+            except:
+                pass
+
+    return render(request, 'tutor_horarios.html', contexto)
+
+def tutor_notas(request):
+    if request.session.get('rol') != 'tutor':
+        return redirect('login')
+
+    contexto = {'xml_entrada': '', 'mensaje': ''}
+
+    if request.method == 'POST':
+        if 'btn_limpiar' in request.POST:
+            return render(request, 'tutor_notas.html', contexto)
+
+        if 'btn_cargar' in request.POST and 'archivo_xml' in request.FILES:
+            archivo = request.FILES['archivo_xml']
+            contexto['xml_entrada'] = archivo.read().decode('utf-8')
+
+        if 'btn_procesar' in request.POST:
+            xml_contenido = request.POST.get('texto_xml')
+            contexto['xml_entrada'] = xml_contenido
+            try:
+                # Enviamos el XML a la ruta de Flask que llena la Matriz Dispersa
+                respuesta = requests.post(f"{API_URL}/tutor/notas/cargar", data=xml_contenido.encode('utf-8'), headers={'Content-Type': 'application/xml'})
+                if respuesta.status_code == 200:
+                    contexto['mensaje'] = "¡Éxito! Notas integradas en la Matriz Dispersa."
+                else:
+                    contexto['mensaje'] = f"Error: {respuesta.text}"
+            except:
+                contexto['mensaje'] = "Error de conexión con el Backend"
+
+    return render(request, 'tutor_notas.html', contexto)
+
+def reporte_tutor(request):
+    if request.session.get('rol') != 'tutor':
+        return redirect('login')
+
+    lista_cursos = []
+    try:
+        resp_cursos = requests.get(f"{API_URL}/cursos")
+        if resp_cursos.status_code == 200:
+            lista_cursos = resp_cursos.json().get("cursos", [])
+    except:
+        pass
+
+    curso_seleccionado = None
+    actividades = []
+    promedios = []
+    imagen_graphviz = ""
+
+    if request.method == 'POST':
+        curso_seleccionado = request.POST.get('curso_select')
+
+    if curso_seleccionado:
         try:
-            # Enviamos todo el texto a Flask para que use la Expresión Regular
-            respuesta = requests.post(f"{API_URL}/tutor/horarios", json={"texto": texto_xml})
+            respuesta = requests.get(f"{API_URL}/tutor/notas/promedio/{curso_seleccionado}")
             if respuesta.status_code == 200:
-                horarios_extraidos = respuesta.json().get("horarios", [])
+                datos = respuesta.json()
+                actividades = datos.get("actividades", [])
+                promedios = datos.get("promedios", [])
+
+            resp_grafo = requests.get(f"{API_URL}/tutor/reporte/graphviz/{curso_seleccionado}")
+            if resp_grafo.status_code == 200:
+                imagen_graphviz = resp_grafo.json().get("imagen_url", "")
         except:
             pass
 
-    return render(request, 'tutor_horarios.html', {'horarios': horarios_extraidos})
+    contexto = {
+        'cursos': lista_cursos,
+        'curso_actual': curso_seleccionado,
+        'actividades': actividades,
+        'promedios': promedios,
+        'grafo': imagen_graphviz
+    }
+    return render(request, 'tutor_reportes.html', contexto)
+
 def top_notas_tutor(request):
     if request.session.get('rol') != 'tutor':
         return redirect('login')
@@ -200,3 +217,45 @@ def top_notas_tutor(request):
         'notas': notas
     }
     return render(request, 'tutor_top.html', contexto)
+
+def mis_notas(request):
+    if request.session.get('rol') != 'estudiante':
+        return redirect('login')
+
+    carnet = request.session.get('usuario') 
+    cursos_asignados = []
+    curso_seleccionado = None
+    notas_estudiante = []
+    
+    # 1. Pedir cursos a Flask
+    try:
+        # IMPORTANTE: Asegúrate que API_URL sea http://127.0.0.1:5001/api
+        url_cursos = f"{API_URL}/estudiante/{carnet}/cursos"
+        resp_cursos = requests.get(url_cursos)
+        
+        if resp_cursos.status_code == 200:
+            # Flask manda {"cursos": ["770"]}, así que extraemos esa lista
+            cursos_asignados = resp_cursos.json().get("cursos", [])
+            print(f"DEBUG DJANGO: Cursos recibidos para {carnet} -> {cursos_asignados}")
+    except Exception as e:
+        print(f"ERROR DJANGO AL PEDIR CURSOS: {str(e)}")
+
+    # 2. Si el estudiante elige un curso del menú
+    if request.method == 'POST':
+        curso_seleccionado = request.POST.get('curso_select')
+        if curso_seleccionado:
+            try:
+                url_notas = f"{API_URL}/estudiante/notas/{curso_seleccionado}/{carnet}"
+                respuesta = requests.get(url_notas)
+                if respuesta.status_code == 200:
+                    notas_estudiante = respuesta.json().get("notas", [])
+            except:
+                pass
+        
+    contexto = {
+        'carnet': carnet,
+        'cursos': cursos_asignados, # Esta es la lista que llena el menú
+        'curso_actual': curso_seleccionado,
+        'notas': notas_estudiante
+    }
+    return render(request, 'mis_notas.html', contexto)
