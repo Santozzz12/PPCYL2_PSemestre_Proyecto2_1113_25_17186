@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <title>IPC2-AcadNet | Reportes de Tutor</title>
-    <!-- Importar Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -96,7 +95,7 @@
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3);
         }
-        
+
         select option {
             background-color: #1E293B;
             color: white;
@@ -127,7 +126,7 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
             box-shadow: none;
         }
-        
+
         button.secondary:hover {
             background: rgba(255, 255, 255, 0.15);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
@@ -138,19 +137,19 @@
             height: 400px;
             position: relative;
         }
-        
+
         .img-container {
             text-align: center;
             overflow: auto;
             border-radius: 8px;
-            background: rgba(0,0,0,0.2);
+            background: rgba(0, 0, 0, 0.2);
             padding: 15px;
         }
 
         .img-container img {
             max-width: 100%;
             border-radius: 8px;
-            filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.5));
+            filter: drop-shadow(0px 10px 15px rgba(0, 0, 0, 0.5));
         }
 
         .empty-state {
@@ -162,45 +161,48 @@
             background: rgba(0, 0, 0, 0.2);
             backdrop-filter: blur(4px);
         }
-        
+
         .empty-state p {
             font-size: 1.1rem;
             margin: 0;
             animation: pulse 2s infinite;
         }
 
-        .error-text {
-            color: #FCA5A5;
-            background: rgba(239, 68, 68, 0.1);
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid rgba(239, 68, 68, 0.3);
-        }
-
         @keyframes pulse {
-            0% { opacity: 0.8; }
-            50% { opacity: 1; }
-            100% { opacity: 0.8; }
+            0% {
+                opacity: 0.8;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.8;
+            }
         }
 
-        /* Print styles */
         @media print {
             body {
                 background: white;
                 color: black;
                 padding: 0;
             }
+
             .glass-card {
                 box-shadow: none;
                 border: 1px solid #ccc;
                 background: transparent;
                 backdrop-filter: none;
-                -webkit-backdrop-filter: none;
                 page-break-inside: avoid;
             }
-            form, button, .empty-state {
+
+            form,
+            button,
+            .empty-state {
                 display: none !important;
             }
+
             h2 {
                 background: none;
                 -webkit-text-fill-color: black;
@@ -209,22 +211,31 @@
         }
     </style>
 </head>
+
 <body>
 
     <div class="container">
-        <!-- Controles -->
         <div class="glass-card">
             <h2>Gestión de Reportes</h2>
             <form method="POST" class="controls-group">
                 {% csrf_token %}
                 <select name="curso_select" required>
-                    <option value="" disabled {% if not curso_actual %}selected{% endif %}>Selecciona un curso de la lista...</option>
+                    <option value="" disabled {% if not curso_actual %}selected{% endif %}>Selecciona un curso...
+                    </option>
                     {% for c in cursos %}
-                    <option value="{{ c.codigo }}" {% if c.codigo == curso_actual %} selected {% endif %}>
+                    <option value="{{ c.codigo }}" {% if c.codigo|stringformat:"s" == curso_actual|stringformat:"s" %} selected {% endif %}>
                         Curso {{ c.codigo }}
                     </option>
                     {% endfor %}
                 </select>
+
+                <select name="actividad_select">
+                    <option value="" selected disabled>-- Ver Ranking de Actividad --</option>
+                    <option value="Tarea 1">Tarea 1</option>
+                    <option value="Parcial 1">Parcial 1</option>
+                    <option value="Proyecto Final">Proyecto Final</option>
+                </select>
+
                 <button type="submit">Generar Reporte</button>
                 {% if curso_actual %}
                 <button type="button" class="secondary" onclick="window.print()">
@@ -235,7 +246,6 @@
         </div>
 
         {% if curso_actual %}
-        <!-- Gráfica -->
         <div class="glass-card">
             <h2>Promedio de Notas</h2>
             <div class="graph-container">
@@ -243,35 +253,39 @@
             </div>
         </div>
 
-        <!-- Graphviz -->
+        {% if top_notas %}
+        <div class="glass-card">
+            <h2>Top 5 Estudiantes: {{ actividad_nombre }}</h2>
+            <div class="graph-container">
+                <canvas id="graficaTop"></canvas>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="glass-card">
             <h2>Resumen Estructura Matricial</h2>
             <div class="img-container">
                 {% if grafo %}
                 <img src="{{ grafo }}" alt="Matriz Graphviz">
                 {% else %}
-                <div class="error-text">
-                    ⚠️ Error: No se pudo generar la imagen. Verifica que Graphviz (dot) esté instalado y configurado en las variables de entorno de Windows.
-                </div>
+                <div style="color: #FCA5A5; padding: 15px;">⚠️ Error: No se pudo generar la imagen de la Matriz.</div>
                 {% endif %}
             </div>
         </div>
 
-        <!-- Script de Chart.js configurado para modo oscuro -->
         <script>
-            const etiquetas = {{ actividades|safe }};
-            const datos = {{ promedios|safe }};
-
-            // Customización global de Chart.js para que luzca bien en dark mode
+            // Configuración Global
             Chart.defaults.color = '#94A3B8';
             Chart.defaults.font.family = "'Inter', sans-serif";
 
+            // --- GRÁFICA DE PROMEDIOS ---
+            const etiquetas = {{ actividades|default:"[]"|safe }};
+            const datos = {{ promedios|default:"[]"|safe }};
             const ctx = document.getElementById('graficaPromedios').getContext('2d');
-            
-            // Crear un gradiente para las barras
+
             let barGradient = ctx.createLinearGradient(0, 0, 0, 400);
-            barGradient.addColorStop(0, 'rgba(129, 140, 248, 0.9)'); // Indigo claro
-            barGradient.addColorStop(1, 'rgba(79, 70, 229, 0.9)');    // Indigo oscuro
+            barGradient.addColorStop(0, 'rgba(129, 140, 248, 0.9)');
+            barGradient.addColorStop(1, 'rgba(79, 70, 229, 0.9)');
 
             new Chart(ctx, {
                 type: 'bar',
@@ -282,65 +296,62 @@
                         data: datos,
                         backgroundColor: barGradient,
                         borderRadius: 6,
-                        borderWidth: 0,
                         barPercentage: 0.6
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            labels: {
-                                font: { size: 14, weight: '600' }
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                            titleFont: { size: 14, family: 'Inter' },
-                            bodyFont: { size: 14, family: 'Inter' },
-                            padding: 12,
-                            cornerRadius: 8,
-                            displayColors: false
-                        }
-                    },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.05)',
-                                drawBorder: false
-                            },
-                        },
-                        x: {
-                            grid: {
-                                display: false,
-                                drawBorder: false
-                            }
-                        }
-                    },
-                    animation: {
-                        y: {
-                            duration: 1000,
-                            easing: 'easeOutQuart'
-                        }
+                        y: { beginAtZero: true, max: 100, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { grid: { display: false } }
                     }
                 }
             });
+
+            // --- NUEVO: GRÁFICA DE TOP NOTAS (HORIZONTAL) ---
+            {% if top_notas %}
+            const ctxTop = document.getElementById('graficaTop').getContext('2d');
+            let topGradient = ctxTop.createLinearGradient(0, 0, 400, 0);
+            topGradient.addColorStop(0, 'rgba(167, 139, 250, 0.9)');
+            topGradient.addColorStop(1, 'rgba(139, 92, 246, 0.9)');
+
+            new Chart(ctxTop, {
+                type: 'bar',
+                data: {
+                    labels: {{ top_carnets| safe }},
+                datasets: [{
+                    label: 'Calificación Final',
+                    data: {{ top_notas| safe }},
+                backgroundColor: topGradient,
+                borderRadius: 6,
+                indexAxis: 'y'
+                    }]
+                },
+                options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { beginAtZero: true, max: 100, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { grid: { display: false } }
+                }
+            }
+            });
+            {% endif %}
         </script>
 
         {% else %}
-        <!-- Estado inicial -->
         <div class="empty-state">
-            <svg style="width: 60px; height: 60px; margin-bottom: 20px; opacity: 0.6; color: #94A3B8;" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            <svg style="width: 60px; height: 60px; margin-bottom: 20px; opacity: 0.6; color: #94A3B8;" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                </path>
             </svg>
             <p>Selecciona un curso en el panel superior para visualizar su reporte estadístico.</p>
         </div>
         {% endif %}
-
     </div>
-
 </body>
+
 </html>

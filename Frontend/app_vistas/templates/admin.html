@@ -1,32 +1,219 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 
 <head>
-    <title>IPC2-AcadNet | Admin</title>
+    <meta charset="UTF-8">
+    <title>IPC2-AcadNet | Panel Administrador</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --bg-gradient-start: #0F172A;
+            --bg-gradient-end: #1E1B4B;
+            --surface: rgba(30, 41, 59, 0.7);
+            --surface-border: rgba(255, 255, 255, 0.1);
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end));
+            background-attachment: fixed;
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Estilizado */
+        .sidebar {
+            width: 260px;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid var(--surface-border);
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .sidebar h2 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #818CF8, #C084FC);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .sidebar-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+        }
+
+        /* Contenido Principal */
+        .main-content {
+            flex-grow: 1;
+            padding: 40px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .glass-card {
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--surface-border);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            font-weight: 800;
+            margin-top: 0;
+            text-transform: uppercase;
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+            color: #818CF8;
+        }
+
+        /* Botones y Controles */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+
+        button,
+        .btn-link {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Inter', sans-serif;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover,
+        .btn-link:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+        }
+
+        button[name="btn_limpiar"] {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #FCA5A5;
+        }
+
+        button[name="btn_limpiar"]:hover {
+            background: rgba(239, 68, 68, 0.3);
+        }
+
+        /* Áreas de Texto */
+        textarea {
+            width: 100%;
+            height: 180px;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--surface-border);
+            border-radius: 8px;
+            color: #94A3B8;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            resize: vertical;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: var(--primary);
+        }
+
+        input[type="file"] {
+            color: var(--text-muted);
+            margin-bottom: 15px;
+        }
+
+        .success-text {
+            color: #4ADE80;
+            font-weight: 600;
+        }
+    </style>
 </head>
 
-<body style="font-family: Arial; display: flex;">
-    <div style="width: 200px; border-right: 1px solid black; padding: 20px;">
-        <h2>👤 Admin</h2>
-        <hr>
-        <p>⬆️ Cargar Archivo</p>
-        <p>👥 Ver Usuarios</p>
-        <p>ℹ️ Información</p>
+<body>
+
+    <div class="sidebar">
+        <h2>👤 ADMIN</h2>
+        <hr style="border: 0; border-top: 1px solid var(--surface-border); width: 100%;">
+        <a class="sidebar-item"><span>⬆️</span> Cargar Archivo</a>
+        <a class="sidebar-item"><span>👥</span> Ver Usuarios</a>
+        <a class="sidebar-item"><span>ℹ️</span> Información</a>
     </div>
-    <div style="padding: 30px; width: 100%;">
-        <h2>CARGA DE ARCHIVOS</h2>
-        <form method="POST" enctype="multipart/form-data">
-            {% csrf_token %}
-            <input type="file" name="archivo_xml">
-            <button type="submit" name="btn_cargar">Cargar Archivo</button>
-            <button type="submit" name="btn_procesar">Procesar Datos</button>
-            <button type="submit" name="btn_limpiar">Limpiar Datos</button>
-            <br><br>
-            <textarea name="texto_xml" style="width: 100%; height: 150px;">{{ xml_entrada }}</textarea>
-        </form>
-        <h2>SALIDA</h2>
-        <textarea readonly style="width: 100%; height: 150px;">{{ xml_salida }}</textarea>
+
+    <div class="main-content">
+
+        <div class="glass-card">
+            <h2>Gestión de Configuración</h2>
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="file" name="archivo_xml" accept=".xml">
+
+                <div class="btn-group">
+                    <button type="submit" name="btn_cargar">🚀 Cargar Archivo</button>
+                    <button type="submit" name="btn_procesar">⚙️ Procesar Datos</button>
+                    <button type="submit" name="btn_limpiar">🗑️ Limpiar Todo</button>
+                </div>
+
+                <p style="margin-bottom: 10px; font-weight: 600;">Contenido del XML de Entrada:</p>
+                <textarea name="texto_xml"
+                    placeholder="El contenido del XML aparecerá aquí...">{{ xml_entrada }}</textarea>
+            </form>
+        </div>
+
+        <div class="glass-card">
+            <h2>Vista Previa de Salida</h2>
+            <textarea readonly placeholder="Aquí verás el resultado del procesamiento...">{{ xml_salida }}</textarea>
+        </div>
+
+        <div class="glass-card" style="border-left: 4px solid #4ADE80;">
+            <h2>Finalizar Proceso</h2>
+            <p style="color: var(--text-muted); margin-bottom: 20px;">
+                Una vez procesada la información, puedes descargar el comprobante oficial de asignaciones.
+            </p>
+            <a href="{% url 'descargar_reporte_admin' %}" class="btn-link">
+                📥 Descargar XML de Salida
+            </a>
+        </div>
+
     </div>
+
 </body>
 
 </html>

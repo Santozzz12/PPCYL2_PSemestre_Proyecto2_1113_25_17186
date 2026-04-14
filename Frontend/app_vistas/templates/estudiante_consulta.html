@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>AcadNet | Consulta Estudiante</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        /* Reutiliza tus variables de CSS anteriores */
+        :root {
+            --primary: #4F46E5;
+            --bg: #0F172A;
+            --surface: rgba(30, 41, 59, 0.7);
+            --text: #F8FAFC;
+        }
+
+        body {
+            font-family: 'Inter';
+            background: var(--bg);
+            color: var(--text);
+            padding: 40px;
+        }
+
+        .glass-card {
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 800px;
+            margin: auto;
+        }
+
+        input {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            width: 60%;
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th {
+            text-align: left;
+            color: #94A3B8;
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .badge-pos {
+            color: #4ADE80;
+            font-weight: bold;
+        }
+
+        .badge-neg {
+            color: #FB7185;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="glass-card">
+        <h2
+            style="background: linear-gradient(to right, #818CF8, #C084FC); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            CONSULTA DE CALIFICACIONES</h2>
+
+        <form method="POST" style="display: flex; gap: 10px; margin-bottom: 30px;">
+            {% csrf_token %}
+            <input type="text" name="carnet" placeholder="Ingresa tu carnet (ej. 202012345)" required
+                value="{{ carnet|default:'' }}">
+            <button type="submit">Consultar Notas</button>
+        </form>
+
+        {% if error %}
+        <p style="color: #FB7185;">{{ error }}</p>
+        {% endif %}
+
+        {% if notas %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Curso</th>
+                    <th>Actividad</th>
+                    <th>Nota</th>
+                    <th>Resultado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for n in notas %}
+                <tr>
+                    <td>{{ n.curso }}</td>
+                    <td>{{ n.actividad }}</td>
+                    <td>{{ n.nota }} pts</td>
+                    <td class="{% if n.nota >= 61 %}badge-pos{% else %}badge-neg{% endif %}">
+                        {{ n.estado }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+</body>
+
+</html>

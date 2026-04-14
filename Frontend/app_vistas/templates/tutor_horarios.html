@@ -11,13 +11,19 @@
     <p>Pega aquí el contenido de tu archivo XML. El sistema extraerá automáticamente los horarios usando Expresiones
         Regulares.</p>
 
+    {% if error %}
+    <div
+        style="background-color: #ffcccc; color: #cc0000; padding: 15px; border: 1px solid #cc0000; margin-bottom: 20px;">
+        <strong>¡Aviso del Sistema!</strong> {{ error }}
+    </div>
+    {% endif %}
+
     <form method="POST">
         {% csrf_token %}
         <textarea name="contenido_xml" rows="10" style="width: 100%; max-width: 600px; padding: 10px;"
-            placeholder="<horarios>\n  <curso>IPC2</curso>\n  <disponibilidad>HorarioI: 08:00 HorarioF: 10:00</disponibilidad>\n</horarios>"
-            required></textarea>
+            required>{{ xml_entrada }}</textarea>
         <br><br>
-        <button type="submit" style="padding: 10px 20px;">Extraer Horarios</button>
+        <button type="submit" name="btn_procesar" style="padding: 10px 20px;">Extraer Horarios</button>
     </form>
 
     <br>
@@ -39,6 +45,14 @@
         </tr>
         {% endfor %}
     </table>
+
+    <br>
+    <a href="{% url 'descargar_pdf_horarios' %}" target="_blank">
+        <button
+            style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; cursor: pointer; border-radius: 5px;">
+            📥 Descargar Reporte en PDF
+        </button>
+    </a>
     {% endif %}
 
 </body>

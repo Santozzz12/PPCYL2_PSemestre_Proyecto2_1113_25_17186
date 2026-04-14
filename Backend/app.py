@@ -1,13 +1,16 @@
 import urllib.parse
 import graphviz
 import base64
-from flask import Flask, request, jsonify
+import re
+import xml.etree.ElementTree as ET
+from flask import Flask, request, jsonify, redirect
+from flasgger import Swagger
 import xml.etree.ElementTree as ET
 import re
-from flasgger import Swagger
-from flask import redirect
+from flask import request, jsonify
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
 
-# Importamos la lógica de las Fases 1 y 2
 from xml_processor import extraer_horario_con_pila
 from matriz_dispersa import MatrizDispersa
 
@@ -18,16 +21,7 @@ app.config['SWAGGER'] = {
 }
 swagger = Swagger(app)
 
-@app.route('/')
-def index():
-    # Si alguien entra a la raíz, lo mandamos directo a la documentación
-    return redirect('/apidocs/')
-
-# ========================================================
-# SIMULACIÓN DE BASE DE DATOS (En memoria)
-# ========================================================
 db_usuarios = {"estudiantes": {}, "tutores": {}}
-# Diccionario para almacenar una Matriz Dispersa por cada curso
 db_cursos = {}
 
 db_tutores = {
@@ -36,10 +30,104 @@ db_tutores = {
 db_estudiantes = {
     "1234": {"contrasenia": "1234", "nombre": "estudiante 1"}
 }
-db_asignaciones_estudiantes = {} # Guardará { "1234": ["770", "771"] }
-# ========================================================
-# ENDPOINTS (RUTAS HTTP)
-# ========================================================
+db_asignaciones_estudiantes = {} 
+db_asignaciones_tutores = {}
+
+stats = {
+    'asig_e_total': 0,
+    'asig_e_ok': 0,
+    'asig_e_fail': 0,
+    'asig_t_total': 0,
+    'asig_t_ok': 0,
+    'asig_t_fail': 0
+}
+
+@app.route('/')
+def index():
+    return redirect('/apidocs/')
+
+@app.route('/api/tutor/horarios/cargar', methods=['POST'])
+def cargar_horarios_tutor():
+    try:
+        xml_data = request.data.decode('utf-8')
+        id_tutor = request.headers.get('Tutor-ID')
+        
+        root = ET.fromstring(xml_data)
+        
+        horarios_procesados = [] # Aquí guardaremos los datos para Django
+
+        for curso_element in root.findall('.//curso'):
+            curso_codigo = curso_element.get('codigo')
+            texto_sucio = curso_element.text
+            
+            horario_limpio = procesar_horario_con_pila(texto_sucio)
+            
+            if horario_limpio:
+                # 1. VERIFICAMOS LA MEMORIA: ¿Existe el curso?
+                if curso_codigo in db_cursos:
+                     if not hasattr(db_cursos[curso_codigo], 'horarios'):
+                          db_cursos[curso_codigo].horarios = []
+                     
+                     db_cursos[curso_codigo].horarios.append(horario_limpio)
+                     
+                     # 2. EL ARREGLO: Guardamos el diccionario completo para que Django lo lea
+                     horarios_procesados.append({
+                         "curso": curso_codigo,
+                         "horario": horario_limpio
+                     })
+                     print(f"✅ ÉXITO: Horario guardado para curso {curso_codigo}")
+                else:
+                     print(f"❌ ERROR: El curso {curso_codigo} no existe en la RAM de Flask. ¿Cargaste el XML 1 de Admin?")
+            else:
+                 print(f"❌ ERROR: Regex falló o formato inválido en curso {curso_codigo}")
+
+        # 3. EL ARREGLO: Le mandamos la llave 'exitosos' que Django está esperando
+        return jsonify({
+            "mensaje": "Procesamiento finalizado", 
+            "exitosos": horarios_procesados
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def procesar_horario_con_pila(texto_sucio):
+    # 1. EXPRESIONES REGULARES: Extraemos los grupos de horas
+    # Buscamos el patrón HorarioI: HH:mm y HorarioF: HH:mm
+    patron = r"HorarioI:\s*(\d{2}:\d{2})\s*HorarioF:\s*(\d{2}:\d{2})"
+    match = re.search(patron, texto_sucio)
+    
+    if not match:
+        return None
+
+    hora_inicio = match.group(1)
+    hora_final = match.group(2)
+
+    # 2. USO DE PILA: Validamos que las horas tengan el formato HH:mm correctamente
+    pila_validacion = []
+    for char in hora_inicio + hora_final:
+        if char == ":":
+            pila_validacion.append(char)
+    
+    # Si la pila tiene exactamente 2 símbolos ':', la validación es exitosa
+    if len(pila_validacion) == 2:
+        return {
+            "inicio": hora_inicio,
+            "fin": hora_final
+        }
+    return None
+
+@app.route('/api/tutor/horario', methods=['POST'])
+def cargar_horario():
+    data = request.get_json()
+    # Aquí recibirías el código del curso y el texto del horario desde el XML
+    texto = data.get('texto_horario')
+    resultado = procesar_horario_con_pila(texto)
+    
+    if resultado:
+        # Guardamos en tu diccionario de base de datos
+        return jsonify({"mensaje": "Horario procesado exitosamente", "datos": resultado}), 200
+    return jsonify({"error": "Formato de horario inválido"}), 400
+
 
 @app.route('/api/admin/cargar_xml', methods=['POST'])
 def cargar_configuracion():
@@ -71,20 +159,71 @@ def cargar_configuracion():
                 db_estudiantes[carnet] = {"nombre": nom, "contrasenia": pwd}
                 estudiantes_cargados += 1
 
-        # 4. AQUÍ PONES EL BLOQUE DE ASIGNACIONES
-        asignaciones_cargadas = 0
+        global stats
+        for key in stats:
+            stats[key] = 0
+
+        # Bloque de asignaciones de ESTUDIANTES (Formato Original)
+        asignaciones_e_cargadas = 0
         for asig in root.iter('estudiante_curso'):
+            stats['asig_e_total'] += 1
             codigo_curso = asig.get('codigo')
             carnet = asig.text.strip() if asig.text else ""
             
             if carnet and codigo_curso:
-                if carnet not in db_asignaciones_estudiantes:
-                    db_asignaciones_estudiantes[carnet] = []
-                if codigo_curso not in db_asignaciones_estudiantes[carnet]:
-                    db_asignaciones_estudiantes[carnet].append(codigo_curso)
-                    asignaciones_cargadas += 1
+                if carnet in db_estudiantes and codigo_curso in db_cursos:
+                    stats['asig_e_ok'] += 1
+                    if carnet not in db_asignaciones_estudiantes:
+                        db_asignaciones_estudiantes[carnet] = []
+                    if codigo_curso not in db_asignaciones_estudiantes[carnet]:
+                        db_asignaciones_estudiantes[carnet].append(codigo_curso)
+                        asignaciones_e_cargadas += 1
+                else:
+                    stats['asig_e_fail'] += 1
+            else:
+                stats['asig_e_fail'] += 1
+
+        # Bloque de asignaciones de TUTORES (Formato Original)
+        asignaciones_t_cargadas = 0
+        for asig in root.iter('tutor_curso'):
+            stats['asig_t_total'] += 1
+            codigo_curso = asig.get('codigo')
+            rp = asig.text.strip() if asig.text else ""
+            
+            if rp and codigo_curso:
+                if rp in db_tutores and codigo_curso in db_cursos:
+                    stats['asig_t_ok'] += 1
+                    if rp not in db_asignaciones_tutores:
+                        db_asignaciones_tutores[rp] = []
+                    if codigo_curso not in db_asignaciones_tutores[rp]:
+                        db_asignaciones_tutores[rp].append(codigo_curso)
+                        asignaciones_t_cargadas += 1
+                else:
+                    stats['asig_t_fail'] += 1
+            else:
+                stats['asig_t_fail'] += 1
         
-        # Este print te confirmará en la consola si se guardaron bien
+        # Bloque de NUEVO FORMATO REQUERIDO DE ASIGNACIONES:
+        asignaciones = root.find('asignaciones')
+        if asignaciones is not None:
+            for asig in asignaciones.findall('asignacion'):
+                stats['asig_e_total'] += 1
+                carnet = asig.get('carnet')
+                codigo_curso = asig.get('codigo_curso')
+                
+                if carnet and codigo_curso:
+                    if carnet in db_estudiantes and codigo_curso in db_cursos:
+                        stats['asig_e_ok'] += 1
+                        if carnet not in db_asignaciones_estudiantes:
+                            db_asignaciones_estudiantes[carnet] = []
+                        if codigo_curso not in db_asignaciones_estudiantes[carnet]:
+                            db_asignaciones_estudiantes[carnet].append(codigo_curso)
+                            asignaciones_e_cargadas += 1
+                    else:
+                        stats['asig_e_fail'] += 1
+                else:
+                    stats['asig_e_fail'] += 1
+        
         print(f"DEBUG: Asignaciones guardadas: {db_asignaciones_estudiantes}")
 
         return jsonify({
@@ -92,7 +231,7 @@ def cargar_configuracion():
             "estadisticas": {
                 "tutores": len(db_tutores),
                 "estudiantes": estudiantes_cargados,
-                "asignaciones": asignaciones_cargadas,
+                "asignaciones": asignaciones_e_cargadas + asignaciones_t_cargadas,
                 "cursos": len(db_cursos)
             }
         }), 200
@@ -100,31 +239,6 @@ def cargar_configuracion():
     except Exception as e:
         print(f"ERROR EN CARGA: {str(e)}")
         return jsonify({"error": str(e)}), 400
-@app.route('/api/tutor/horarios/cargar', methods=['POST'])
-def cargar_horarios():
-    """Recibe XML de horarios y usa la regex con pilas para limpiar la cadena."""
-    xml_data = request.data.decode('utf-8')
-    try:
-        root = ET.fromstring(xml_data)
-        horarios_procesados = []
-        
-        for curso in root.findall('curso'):
-            codigo = curso.get('codigo')
-            texto_horario = curso.text
-            
-            # Usamos la función de la Fase 2 (Regex + Pila)
-            horario_extraido = extraer_horario_con_pila(texto_horario)
-            if horario_extraido:
-                horarios_procesados.append({
-                    "curso": codigo,
-                    "hora_inicio": horario_extraido[0],
-                    "hora_fin": horario_extraido[1]
-                })
-        
-        return jsonify({"mensaje": "Horarios extraídos con éxito", "datos": horarios_procesados}), 200
-    except ET.ParseError:
-        return jsonify({"error": "El archivo XML está mal formado"}), 400
-
 
 @app.route('/api/tutor/notas/cargar', methods=['POST'])
 def cargar_notas():
@@ -353,5 +467,88 @@ def obtener_notas_estudiante(curso, carnet):
 
     print(f"✅ Notas encontradas para {carnet}: {notas_encontradas}")
     return jsonify({"notas": notas_encontradas}), 200
+@app.route('/api/reportes/top-notas/<codigo_curso>/<actividad>', methods=['GET'])
+def obtener_top_notas(codigo_curso, actividad):
+    if codigo_curso in db_cursos:
+        matriz = db_cursos[codigo_curso]
+        
+        # 1. Obtenemos el diccionario { carnet: nota } de esa actividad
+        notas_dict = matriz.notas_por_actividad(actividad)
+        
+        # 2. Convertimos a lista y ordenamos de mayor a menor por el valor de la nota
+        # sorted_notas será una lista de tuplas: [('1234', 95), ('5678', 85)...]
+        sorted_notas = sorted(notas_dict.items(), key=lambda item: item[1], reverse=True)
+        
+        # 3. Tomamos los primeros 5 (o los que quieras)
+        top_5 = sorted_notas[:5]
+        
+        return jsonify({
+            "carnets": [item[0] for item in top_5],
+            "notas": [item[1] for item in top_5]
+        }), 200
+        
+    return jsonify({"error": "No hay datos"}), 404
+
+@app.route('/api/estudiante/consultar/<carnet>', methods=['GET'])
+def consultar_notas_estudiante(carnet):
+    notas_totales = []
+    print(f"🔍 DEBUG: Buscando notas para el carnet: [{carnet}]") # Esto saldrá en tu terminal
+    print(f"DEBUG: Cursos cargados actualmente: {list(db_cursos.keys())}")
+    for codigo, curso in db_cursos.items():
+        matriz = curso
+        actividades = matriz.filas() 
+        print(f"👉 DEBUG: Curso {codigo} tiene filas (actividades): {actividades}")
+        
+        for act in actividades:
+            if hasattr(matriz, 'obtener'):
+                nota = matriz.obtener(act, carnet)
+            else:
+                nota = matriz.obtener_nota(act, carnet)
+            
+            print(f"     -> Chequeando actividad: [{act}] para carnet [{carnet}]. Nota obtenida: {nota}")
+            if nota > 0:
+                print(f"✅ ¡Encontrado! Curso: {codigo}, Actividad: {act}, Nota: {nota}")
+                notas_totales.append({
+                    'curso': codigo,
+                    'actividad': act,
+                    'nota': nota,
+                    'estado': 'Aprobado' if nota >= 61 else 'Reprobado'
+                })
+    
+    if not notas_totales:
+        print(f"❌ No se encontró nada para {carnet}")
+        return jsonify({"mensaje": "No se encontraron notas"}), 404
+    return jsonify(notas_totales), 200
+        
+    return jsonify(notas_totales), 200
+@app.route('/api/admin/generar-reporte', methods=['GET'])
+def generar_xml_salida():
+    import xml.etree.ElementTree as ET
+    from xml.dom import minidom
+    from flask import Response
+
+    root = ET.Element("configuraciones_aplicadas")
+    
+    ET.SubElement(root, "tutores_cargados").text = str(len(db_tutores))
+    ET.SubElement(root, "estudiantes_cargados").text = str(len(db_estudiantes))
+    
+    asig = ET.SubElement(root, "asignaciones")
+    
+    t_sec = ET.SubElement(asig, "tutores")
+    ET.SubElement(t_sec, "total").text = str(stats['asig_t_total'])
+    ET.SubElement(t_sec, "correcto").text = str(stats['asig_t_ok'])
+    ET.SubElement(t_sec, "incorrecto").text = str(stats['asig_t_fail'])
+    
+    e_sec = ET.SubElement(asig, "estudiantes")
+    ET.SubElement(e_sec, "total").text = str(stats['asig_e_total'])
+    ET.SubElement(e_sec, "correcto").text = str(stats['asig_e_ok'])
+    ET.SubElement(e_sec, "incorrecto").text = str(stats['asig_e_fail'])
+    
+    xml_bytes = ET.tostring(root, encoding='utf-8')
+    reparsed = minidom.parseString(xml_bytes)
+    pretty_xml = reparsed.toprettyxml(indent="   ").strip() 
+    
+    return Response(pretty_xml, mimetype='application/xml')
+
 if __name__ == '__main__':
     app.run(port=5001, debug=True)
